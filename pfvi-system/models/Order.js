@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { STATUSES } = require('../lib/orderState/statusConstants');
 
 const orderSchema = new mongoose.Schema({
   salesmanID: {
@@ -45,8 +46,8 @@ const orderSchema = new mongoose.Schema({
   },
   orderStatus: { 
     type: String, 
-    enum: ['Being Prepared', 'Picked Up', 'In Transit', 'Delivered', 'Deferred', 'Cancelled'], 
-    default: 'Being Prepared', 
+    enum: STATUSES, 
+    default: STATUSES[0], 
     required: true 
   },
   dateDelivered: {

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   Calendar, Phone, DollarSign, Truck, FileText,
   ChevronDown, ChevronUp, Copy
@@ -62,6 +62,27 @@ export default function CompactDriverOrderCard({ order = {}, role = "default", o
   const [feedbackMessage, setFeedbackMessage] = useState("");
   const [feedbackSuccess, setFeedbackSuccess] = useState(true);
   const [deliveryError, setDeliveryError] = useState("");
+  // allowedActions come from server to avoid duplicating transition logic in the client
+  const [allowedActions, setAllowedActions] = useState(null);
+
+  // fetch allowed actions when card is expanded
+  useEffect(() => {
+    let mounted = true;
+    async function loadAllowed() {
+      if (!isExpanded || !order?._id) return;
+      try {
+        const res = await fetch(`/api/orders/${order._id}/allowed-actions`, { credentials: 'include' });
+        if (!res.ok) throw new Error('Failed to fetch allowed actions');
+        const data = await res.json();
+        if (mounted && data?.allowedTransitions) setAllowedActions(data.allowedTransitions);
+      } catch (err) {
+        // fallback to client-side sequence if endpoint fails
+        if (mounted) setAllowedActions(["Being Prepared", "Picked Up", "In Transit", "Delivered", "Deferred"]);
+      }
+    }
+    loadAllowed();
+    return () => { mounted = false; };
+  }, [isExpanded, order?._id]);
 
 
   const STATUS_SEQUENCE = ["Being Prepared", "Picked Up", "In Transit", "Delivered", "Deferred"]
@@ -254,7 +275,7 @@ export default function CompactDriverOrderCard({ order = {}, role = "default", o
       {/* Expanded Content */}
       {isExpanded && (
         <div className="p-6 pt-0" onClick={handleStopPropagation}>
-          <div className="h-[1px] w-full bg-gray-200 my-4" />
+          <div className="h-px w-full bg-gray-200 my-4" />
 
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -268,7 +289,7 @@ export default function CompactDriverOrderCard({ order = {}, role = "default", o
                   <p>{order.contactNumber || "No contact number"}</p>
                   <div className="group relative">
                   <Copy
-                    className="h-3.5 w-3.5 text-gray-400 cursor-pointer hover:text-blue-500"
+                    className="h-3.5 w-3.5 text-gray-400 cursor-pointer hover:text-blue-500 shrink-0"
                     onClick={(e) => {
                       e.stopPropagation()
                       navigator.clipboard.writeText(order.contactNumber)
@@ -418,23 +439,23 @@ export default function CompactDriverOrderCard({ order = {}, role = "default", o
                   <p className="text-sxs font-semibold text-gray-800 mb-2">Update Order Status:</p>
                   <div className="flex justify-center">
                     <div className="flex flex-wrap justify-center gap-2">
-                      {STATUS_SEQUENCE.map((status) => {
-                        return (
-                          <button
-                            key={status}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleStatusChange(status)
-                            }}
-                            style={{ cursor: 'pointer' }}
-                            className={`text-white font-medium rounded-lg text-sm px-4 py-2 text-center bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700 hover:bg-gradient-to-br focus:ring-4 focus:outline-none focus:ring-blue-300 dark:focus:ring-blue-800`}
-                          >{status}</button>)
-                      })}
+                      {(allowedActions || STATUS_SEQUENCE).map((status) => {
+                         return (
+                           <button
+                             key={status}
+                             onClick={(e) => {
+                               e.stopPropagation()
+                               handleStatusChange(status)
+                             }}
+                             style={{ cursor: 'pointer' }}
+                             className={`text-white font-medium rounded-lg text-sm px-4 py-2 text-center bg-linear-to-r from-blue-500 via-blue-600 to-blue-700 hover:bg-linear-to-br focus:ring-4 focus:outline-none focus:ring-blue-300 dark:focus:ring-blue-800`}
+                           >{status}</button>)
+                       })}
                     </div>
                   </div>
                 </div>
 
-                <div className="h-[1px] w-full bg-gray-300 my-4"></div>
+                <div className="h-px w-full bg-gray-300 my-4"></div>
 
                 {/* Add/Edit Note */}
                 <div className="pt-2">
@@ -445,7 +466,7 @@ export default function CompactDriverOrderCard({ order = {}, role = "default", o
                         setShowNoteInput(true)
                         setDriverNoteInput(order.driverNotes || "")
                       }}
-                      className="text-white bg-gradient-to-r from-purple-500 via-purple-600 to-purple-700 hover:bg-gradient-to-br focus:ring-4 focus:outline-none focus:ring-purple-300 dark:focus:ring-purple-800 font-medium rounded-lg text-sm px-5 py-2.5 text-center me-2 mb-2"
+                      className="text-white bg-linear-to-r from-purple-500 via-purple-600 to-purple-700 hover:bg-linear-to-br focus:ring-4 focus:outline-none focus:ring-purple-300 dark:focus:ring-purple-800 font-medium rounded-lg text-sm px-5 py-2.5 text-center me-2 mb-2"
                     >{order.driverNotes ? "Edit Driver's Note" : "Add Driver's Note"}</button>
                   ) : (
                     <div className="space-y-2 mt-2">
@@ -465,7 +486,7 @@ export default function CompactDriverOrderCard({ order = {}, role = "default", o
                             setShowNoteModal(true)
                           }}
                           disabled={isSubmittingNote}
-                          className="text-white bg-gradient-to-r from-green-400 via-green-500 to-green-600 hover:bg-gradient-to-br focus:ring-4 focus:outline-none focus:ring-green-300 dark:focus:ring-green-800 font-medium rounded-lg text-sm px-4 py-2 text-center me-2 mb-2"
+                          className="text-white bg-linear-to-r from-green-400 via-green-500 to-green-600 hover:bg-linear-to-br focus:ring-4 focus:outline-none focus:ring-green-300 dark:focus:ring-green-800 font-medium rounded-lg text-sm px-4 py-2 text-center me-2 mb-2"
                         >
                           {isSubmittingNote ? "Saving..." : "Save Note"}
                         </button>
@@ -475,7 +496,7 @@ export default function CompactDriverOrderCard({ order = {}, role = "default", o
                             setShowNoteInput(false)
                             setDriverNoteInput(order.driverNotes || "")
                           }}
-                          className="text-white bg-gradient-to-r from-red-400 via-red-500 to-red-600 hover:bg-gradient-to-br focus:ring-4 focus:outline-none focus:ring-red-300 dark:focus:ring-red-800 font-medium rounded-lg text-sm px-4 py-2 text-center me-2 mb-2"
+                          className="text-white bg-linear-to-r from-red-400 via-red-500 to-red-600 hover:bg-linear-to-br focus:ring-4 focus:outline-none focus:ring-red-300 dark:focus:ring-red-800 font-medium rounded-lg text-sm px-4 py-2 text-center me-2 mb-2"
                         >Cancel</button>
                       </div>
                     </div>

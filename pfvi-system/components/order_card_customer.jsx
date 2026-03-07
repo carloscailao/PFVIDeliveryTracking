@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Calendar, Phone, DollarSign, Truck, FileText, ChevronDown, ChevronUp, Copy } from "lucide-react"
 import { format } from 'date-fns';
 
@@ -42,8 +42,8 @@ function formatCurrency(amount) {
     .replace("PHP", "₱")
 }
 
-function OrderStatusTracker({ orderStatus, order }) {
-  const statusList = [
+function OrderStatusTracker({ orderStatus, order, allStatuses }) {
+  const statusList = Array.isArray(allStatuses) && allStatuses.length ? allStatuses : [
     "Being Prepared",
     "Picked Up", 
     "In Transit",
@@ -152,6 +152,24 @@ function OrderStatusTracker({ orderStatus, order }) {
 export default function CompactOrderCard({ order }) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [copyFeedback, setCopyFeedback] = useState(false);
+  const [allStatuses, setAllStatuses] = useState(null);
+
+  useEffect(() => {
+    let mounted = true;
+    async function loadAllowed() {
+      if (!isExpanded || !order?._id) return;
+      try {
+        const res = await fetch(`/api/orders/${order._id}/allowed-actions`, { credentials: 'include' });
+        if (!res.ok) throw new Error('Failed to fetch allowed actions');
+        const data = await res.json();
+        if (mounted && data?.allStatuses) setAllStatuses(data.allStatuses);
+      } catch (err) {
+        if (mounted) setAllStatuses(null);
+      }
+    }
+    loadAllowed();
+    return () => { mounted = false };
+  }, [isExpanded, order?._id]);
 
   const toggleExpanded = () => {
     setIsExpanded(!isExpanded)
@@ -224,7 +242,7 @@ export default function CompactOrderCard({ order }) {
       
       {isExpanded && (
         <div className="p-4 sm:p-6 pt-0">
-          <div className="h-[1px] w-full bg-gray-200 my-4"></div>
+          <div className="h-px w-full bg-gray-200 my-4"></div>
           
           <div className="space-y-6">
 
@@ -232,18 +250,18 @@ export default function CompactOrderCard({ order }) {
               {/* Contact info */}
               <div>
                 <div className="flex items-center gap-2 font-semibold text-gray-900 text-sm">
-                  <Phone className="h-4 w-4 flex-shrink-0" />
+                  <Phone className="h-4 w-4 shrink-0" />
                   <span>Contact Details</span>
                 </div>
                 <div className="ml-6 space-y-2">
-                  <p className="text-sm text-gray-700 break-words">{order.contactNumber || "No contact number"}</p>
+                  <p className="text-sm text-gray-700 wrap-break-word">{order.contactNumber || "No contact number"}</p>
                 </div>
               </div>
               
               {/* Timeline */}
               <div className="space-y-3">
                 <div className="flex items-center gap-2 font-semibold text-gray-900 text-sm">
-                  <Calendar className="h-4 w-4 flex-shrink-0" />
+                  <Calendar className="h-4 w-4 shrink-0" />
                   <span>Timeline</span>
                 </div>
                 <div className="ml-6 space-y-2 text-sm">
@@ -266,17 +284,17 @@ export default function CompactOrderCard({ order }) {
               {/* Assignment details */}
               <div className="space-y-3">
                 <div className="flex items-center gap-2 font-semibold text-gray-900 text-sm">
-                  <Truck className="h-4 w-4 flex-shrink-0" />
+                  <Truck className="h-4 w-4 shrink-0" />
                   <span>Assignment</span>
                 </div>
                 <div className="ml-6 space-y-2 text-sm">
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
                     <span className="text-gray-600">Driver ID:</span>
-                    <span className="text-gray-500 break-words">{order.driverAssignedID || "Not assigned"}</span>
+                    <span className="text-gray-500 wrap-break-word">{order.driverAssignedID || "Not assigned"}</span>
                   </div>
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
                     <span className="text-gray-600">Delivery Received By:</span>
-                    <span className="text-gray-500 break-words">{order.deliveryReceivedBy || "Not delivered"}</span>
+                    <span className="text-gray-500 wrap-break-word">{order.deliveryReceivedBy || "Not delivered"}</span>
                   </div>
                 </div>
               </div>
@@ -284,13 +302,13 @@ export default function CompactOrderCard({ order }) {
               {/* Payment details */}
               <div className="space-y-3">
                 <div className="flex items-center gap-2 font-semibold text-gray-900 text-sm">
-                  <DollarSign className="h-4 w-4 flex-shrink-0" />
+                  <DollarSign className="h-4 w-4 shrink-0" />
                   <span>Payment Details</span>
                 </div>
                 <div className="ml-6 space-y-2 text-sm">
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
                     <span className="text-gray-600">Invoice:</span>
-                    <span className="text-gray-500 break-words">{order.invoice || "Not set"}</span>
+                    <span className="text-gray-500 wrap-break-word">{order.invoice || "Not set"}</span>
                   </div>
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
                     <span className="text-gray-600">Payment Received:</span>
@@ -300,7 +318,7 @@ export default function CompactOrderCard({ order }) {
                   </div>
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
                     <span className="text-gray-600">Payment Received By:</span>
-                    <span className="text-gray-500 break-words">{order.paymentReceivedBy || "N/A"}</span>
+                    <span className="text-gray-500 wrap-break-word">{order.paymentReceivedBy || "N/A"}</span>
                   </div>
                 </div>
               </div>
@@ -319,7 +337,7 @@ export default function CompactOrderCard({ order }) {
         </div>
       )}
       
-      <OrderStatusTracker orderStatus={order.orderStatus} order={order}/>
+      <OrderStatusTracker orderStatus={order.orderStatus} order={order} allStatuses={allStatuses} />
     </div>
   )
 }

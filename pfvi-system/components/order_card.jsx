@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Calendar, Phone, DollarSign, Truck, FileText, ChevronDown, ChevronUp, Copy } from "lucide-react";
 
 function getStatusColor(status) {
@@ -37,6 +37,24 @@ function formatCurrency(amount) {
 export default function CompactOrderCard({ order }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState(false);
+  const [allowedActions, setAllowedActions] = useState(null);
+
+  useEffect(() => {
+    let mounted = true;
+    async function loadAllowed() {
+      if (!isExpanded || !order?._id) return;
+      try {
+        const res = await fetch(`/api/orders/${order._id}/allowed-actions`, { credentials: 'include' });
+        if (!res.ok) throw new Error('Failed to fetch allowed actions');
+        const data = await res.json();
+        if (mounted && data?.allStatuses) setAllowedActions(data.allStatuses);
+      } catch (err) {
+        if (mounted) setAllowedActions(null);
+      }
+    }
+    loadAllowed();
+    return () => { mounted = false };
+  }, [isExpanded, order?._id]);
 
   const toggleExpanded = (e) => {
     e.stopPropagation();
@@ -87,7 +105,7 @@ export default function CompactOrderCard({ order }) {
       {/* Expanded content */}
       {isExpanded && (
         <div className="p-4 pt-0">
-          <div className="h-[1px] w-full bg-gray-200 my-4"></div>
+          <div className="h-px w-full bg-gray-200 my-4"></div>
           <div className="space-y-6">
             {/* Contact & Timeline */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -97,7 +115,7 @@ export default function CompactOrderCard({ order }) {
                   <span>Contact Details</span>
                 </div>
                 <div className="ml-6 space-y-2">
-                  <p className="text-sm text-gray-700 break-words">{order.contactNumber || "No contact number"}</p>
+                  <p className="text-sm text-gray-700 wrap-break-word">{order.contactNumber || "No contact number"}</p>
                 </div>
               </div>
               <div className="space-y-3">
@@ -190,6 +208,53 @@ export default function CompactOrderCard({ order }) {
           </div>
         </div>
       )}
+      <OrderStatusTracker orderStatus={order.orderStatus} order={order} allStatuses={allowedActions} />
+    </div>
+  );
+}
+
+function OrderStatusTracker({ orderStatus, order, allStatuses }) {
+  const statusList = Array.isArray(allStatuses) && allStatuses.length ? allStatuses : [
+    "Being Prepared",
+    "Picked Up", 
+    "In Transit",
+    "Delivered",
+    "Deferred"
+  ];
+
+  const currentStatusIndex = statusList.findIndex((status) => status.toLowerCase() === orderStatus.toLowerCase());
+
+  return (
+    <div className="mt-4">
+      <div className="flex items-center justify-between mb-2">
+        <h4 className="font-semibold text-gray-900">Order Status</h4>
+        <div className="text-xs text-gray-500 uppercase tracking-wide">
+          {currentStatusIndex + 1} of {statusList.length}
+        </div>
+      </div>
+      <div className="flex gap-2">
+        {statusList.map((status, index) => {
+          const isActive = index === currentStatusIndex;
+          const isCompleted = index < currentStatusIndex;
+          const colorClass = isActive ? "text-white" : "text-gray-700";
+          const bgClass = isActive
+            ? "bg-blue-600"
+            : isCompleted
+            ? "bg-green-100"
+            : "bg-gray-100";
+
+          return (
+            <div
+              key={status}
+              className={`flex-1 py-2 px-4 rounded-lg cursor-pointer transition-all duration-200 flex items-center justify-center gap-2 font-medium ${bgClass} ${colorClass}`}
+            >
+              <div className={`h-3.5 w-3.5 rounded-full ${isCompleted ? "bg-green-600" : isActive ? "bg-blue-600" : "bg-gray-300"}`} />
+              <span>{status}</span>
+              {isActive && <span className="text-xs text-gray-200">(You are here)</span>}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

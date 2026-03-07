@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Calendar, Phone, DollarSign, Truck, FileText, ChevronDown, ChevronUp, Copy, Check, X, Edit3 } from "lucide-react"
 
@@ -57,21 +57,40 @@ function formatCurrency(amount) {
     const [invoiceInput, setInvoiceInput] = useState('');
 
     const [editedOrder, setEditedOrder] = useState({
-      customerName: order.customerName || '',
-      dateMade: order.dateMade ? order.dateMade.split("T")[0] : '',
-      orderStatus: order.orderStatus || '',
-      contactNumber: order.contactNumber || '',
-      dateDelivered: order.dateDelivered || '',
-      deliveryReceivedBy: order.deliveryReceivedBy || '',
-      invoice: order.invoice || '',
-      paymentAmt: order.paymentAmt || 0,
-      paymentMethod: order.paymentMethod || '',
-      paymentReceived: order.paymentReceived || '',
-      paymentReceivedBy: order.paymentReceivedBy || '',
-      salesmanNotes: order.salesmanNotes || '',
-      driverNotes: order.driverNotes || '',
-      secretaryNotes: order.secretaryNotes || ''
-    });
+       customerName: order.customerName || '',
+       dateMade: order.dateMade ? order.dateMade.split("T")[0] : '',
+       orderStatus: order.orderStatus || '',
+       contactNumber: order.contactNumber || '',
+       dateDelivered: order.dateDelivered || '',
+       deliveryReceivedBy: order.deliveryReceivedBy || '',
+       invoice: order.invoice || '',
+       paymentAmt: order.paymentAmt || 0,
+       paymentMethod: order.paymentMethod || '',
+       paymentReceived: order.paymentReceived || '',
+       paymentReceivedBy: order.paymentReceivedBy || '',
+       salesmanNotes: order.salesmanNotes || '',
+       driverNotes: order.driverNotes || '',
+       secretaryNotes: order.secretaryNotes || ''
+     });
+    
+    // fetch all statuses from server to avoid duplicating status list in UI
+    const [allStatuses, setAllStatuses] = useState(null);
+    useEffect(() => {
+      let mounted = true;
+      async function loadStatuses() {
+        if (!order?._id) return;
+        try {
+          const res = await fetch(`/api/orders/${order._id}/allowed-actions`, { credentials: 'include' });
+          if (!res.ok) throw new Error('Failed to fetch statuses');
+          const data = await res.json();
+          if (mounted && data?.allStatuses) setAllStatuses(data.allStatuses);
+        } catch (err) {
+          if (mounted) setAllStatuses(["Being Prepared","Picked Up","In Transit","Delivered","Deferred","Cancelled"]);
+        }
+      }
+      loadStatuses();
+      return () => { mounted = false };
+    }, [order?._id]);
 
     const handleCardClick = () => {
       if (!isExpanded && !isEditing) setIsExpanded(true); // only allow expanding on full-card click, not when editing
@@ -309,12 +328,9 @@ function formatCurrency(amount) {
                     ${getStatusColor(editedOrder.orderStatus)}`}
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <option value="Being Prepared">Being Prepared</option>
-                  <option value="Picked Up">Picked Up</option>
-                  <option value="In Transit">In Transit</option>
-                  <option value="Delivered">Delivered</option>
-                  <option value="Deferred">Deferred</option>
-                  <option value="Cancelled">Cancelled</option>
+                  {(Array.isArray(allStatuses) ? allStatuses : ["Being Prepared","Picked Up","In Transit","Delivered","Deferred","Cancelled"]).map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
                 </select>
               ) : (
                 <span
@@ -399,9 +415,9 @@ function formatCurrency(amount) {
       
       {isExpanded && (
         <div className="p-6 pt-0">
-          <div className="h-[1px] w-full bg-gray-200 my-4"></div>
-          
-          <div className="space-y-6">
+          <div className="h-px w-full bg-gray-200 my-4"></div>
+           
+           <div className="space-y-6">
 
             {/* contact info & timeline grid*/}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -673,77 +689,81 @@ function formatCurrency(amount) {
 
 
             {/* Action Buttons */}
-            <div className="bg-gradient-to-r from-gray-50 to-blue-50 p-6 rounded-lg border border-gray-200">
+            <div className="bg-linear-to-r from-gray-50 to-blue-50 p-6 rounded-lg border border-gray-200">
 
-              {isEditing ? (
-                // Save/Cancel buttons when editing
-                <div className="flex gap-3 justify-center">
-                  <button 
-                    className="group relative bg-green-500 text-white font-medium px-6 py-3 rounded-lg hover:bg-green-600 hover:shadow-md transition-all duration-200 text-sm flex items-center justify-center gap-2"
-                    onClick={handleSaveChanges}
-                  >
-                    <Check className="h-4 w-4" />
-                    <span>Save Changes</span>
-                  </button>
-                  
-                  <button 
-                    className="group relative bg-gray-500 text-white font-medium px-6 py-3 rounded-lg hover:bg-gray-600 hover:shadow-md transition-all duration-200 text-sm flex items-center justify-center gap-2"
-                    onClick={handleCancelEdit}
-                  >
-                    <X className="h-4 w-4" />
-                    <span>Cancel</span>
-                  </button>
-                </div>
-              ) : (
-                // Regular action buttons
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <button 
-                    className="group relative bg-white text-gray-700 font-medium px-4 py-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:shadow-md hover:bg-blue-50 transition-all duration-200 text-sm flex items-center justify-center gap-2 overflow-hidden"
-                    onClick={handleEditToggle}
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-blue-600 opacity-0 group-hover:opacity-10 transition-opacity duration-200"></div>
-                    <Edit3 className="h-4 w-4 text-blue-600" />
-                    <span>Edit Details</span>
-                  </button>
-                  
-                  <button 
-                    className="group relative bg-white text-gray-700 font-medium px-4 py-3 rounded-lg border border-gray-200 hover:border-green-300 hover:shadow-md hover:bg-green-50 transition-all duration-200 text-sm flex items-center justify-center gap-2 overflow-hidden"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowNoteModal(true);
-                    }}
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-r from-green-500 to-green-600 opacity-0 group-hover:opacity-10 transition-opacity duration-200"></div>
-                    <FileText className="h-4 w-4 text-green-600" />
-                    <span>Add Note</span>
-                  </button>
-                  
-                  <button 
-                    className="group relative bg-white text-gray-700 font-medium px-4 py-3 rounded-lg border border-gray-200 hover:border-purple-300 hover:shadow-md hover:bg-purple-50 transition-all duration-200 text-sm flex items-center justify-center gap-2 overflow-hidden"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowInvoiceModal(true);
-                    }}
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-r from-purple-500 to-purple-600 opacity-0 group-hover:opacity-10 transition-opacity duration-200"></div>
-                    <DollarSign className="h-4 w-4 text-purple-600" />
-                    <span>Add Invoice</span>
-                  </button>
-                  
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowAssignModal(true);
-                    }}
-                    className="group relative bg-white text-gray-700 font-medium px-4 py-3 rounded-lg border border-gray-200 hover:border-orange-300 hover:shadow-md hover:bg-orange-50 transition-all duration-200 text-sm flex items-center justify-center gap-2 overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-r from-orange-500 to-orange-600 opacity-0 group-hover:opacity-10 transition-opacity duration-200"></div>
-                    <Truck className="h-4 w-4 text-orange-600" />
-                    <span>Assign Driver</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
+               {isEditing ? (
+                 // Save/Cancel buttons when editing
+                 <div className="flex gap-3 justify-center">
+                   <button 
+                     className="group relative bg-green-500 text-white font-medium px-6 py-3 rounded-lg hover:bg-green-600 hover:shadow-md transition-all duration-200 text-sm flex items-center justify-center gap-2"
+                     onClick={handleSaveChanges}
+                   >
+                     <Check className="h-4 w-4" />
+                     <span>Save Changes</span>
+                   </button>
+                   
+                   <button 
+                     className="group relative bg-gray-500 text-white font-medium px-6 py-3 rounded-lg hover:bg-gray-600 hover:shadow-md transition-all duration-200 text-sm flex items-center justify-center gap-2"
+                     onClick={handleCancelEdit}
+                   >
+                     <X className="h-4 w-4" />
+                     <span>Cancel</span>
+                   </button>
+                 </div>
+               ) : (
+                 // Regular action buttons
+                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                   <button 
+                     className="group relative bg-white text-gray-700 font-medium px-4 py-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:shadow-md hover:bg-blue-50 transition-all duration-200 text-sm flex items-center justify-center gap-2 overflow-hidden"
+                     onClick={handleEditToggle}
+                   >
+-                    <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-blue-600 opacity-0 group-hover:opacity-10 transition-opacity duration-200"></div>
++                    <div className="absolute inset-0 bg-linear-to-r from-blue-500 to-blue-600 opacity-0 group-hover:opacity-10 transition-opacity duration-200"></div>
+                     <Edit3 className="h-4 w-4 text-blue-600" />
+                     <span>Edit Details</span>
+                   </button>
+                   
+                   <button 
+                     className="group relative bg-white text-gray-700 font-medium px-4 py-3 rounded-lg border border-gray-200 hover:border-green-300 hover:shadow-md hover:bg-green-50 transition-all duration-200 text-sm flex items-center justify-center gap-2 overflow-hidden"
+                     onClick={(e) => {
+                       e.stopPropagation();
+                       setShowNoteModal(true);
+                     }}
+                   >
+-                    <div className="absolute inset-0 bg-gradient-to-r from-green-500 to-green-600 opacity-0 group-hover:opacity-10 transition-opacity duration-200"></div>
++                    <div className="absolute inset-0 bg-linear-to-r from-green-500 to-green-600 opacity-0 group-hover:opacity-10 transition-opacity duration-200"></div>
+                     <FileText className="h-4 w-4 text-green-600" />
+                     <span>Add Note</span>
+                   </button>
+                   
+                   <button 
+                     className="group relative bg-white text-gray-700 font-medium px-4 py-3 rounded-lg border border-gray-200 hover:border-purple-300 hover:shadow-md hover:bg-purple-50 transition-all duration-200 text-sm flex items-center justify-center gap-2 overflow-hidden"
+                     onClick={(e) => {
+                       e.stopPropagation();
+                       setShowInvoiceModal(true);
+                     }}
+                   >
+-                    <div className="absolute inset-0 bg-gradient-to-r from-purple-500 to-purple-600 opacity-0 group-hover:opacity-10 transition-opacity duration-200"></div>
++                    <div className="absolute inset-0 bg-linear-to-r from-purple-500 to-purple-600 opacity-0 group-hover:opacity-10 transition-opacity duration-200"></div>
+                     <DollarSign className="h-4 w-4 text-purple-600" />
+                     <span>Add Invoice</span>
+                   </button>
+                   
+                   <button 
+                     onClick={(e) => {
+                       e.stopPropagation();
+                       setShowAssignModal(true);
+                     }}
+                     className="group relative bg-white text-gray-700 font-medium px-4 py-3 rounded-lg border border-gray-200 hover:border-orange-300 hover:shadow-md hover:bg-orange-50 transition-all duration-200 text-sm flex items-center justify-center gap-2 overflow-hidden">
+-                    <div className="absolute inset-0 bg-gradient-to-r from-orange-500 to-orange-600 opacity-0 group-hover:opacity-10 transition-opacity duration-200"></div>
++                    <div className="absolute inset-0 bg-linear-to-r from-orange-500 to-orange-600 opacity-0 group-hover:opacity-10 transition-opacity duration-200"></div>
+                     <Truck className="h-4 w-4 text-orange-600" />
+                     <span>Assign Driver</span>
+                   </button>
+                 </div>
+               )}
+             </div>
+           </div>
         </div>
       )}
       

@@ -31,30 +31,44 @@ export async function POST(request) {
 
         await connectToDatabase();
 
-        const updateFields = {
-            orderStatus: newStatus,
-            [`statusTimestamps.${newStatus}`]: new Date(),
-            lastModified: userName
+        // Load the order and use the state machine to validate and apply transitions
+        const order = await Order.findById(orderId);
+        if (!order) {
+            return new Response(JSON.stringify({ error: 'Order not found.' }), { status: 404 });
+        }
+
+        // Dynamically import the state factory (keeps ESM style)
+        const orderStateModule = await import('@/lib/orderState');
+        const orderState = orderStateModule.default || orderStateModule;
+        const { getState } = orderState;
+        const state = getState(order);
+
+        const meta = {
+            actorId: userName,
+            receivedBy: deliveryReceivedBy || null,
+            paymentReceived: paymentReceived ?? null,
+            paymentReceivedBy: paymentReceivedBy || null,
+            deliveryDate: deliveryDate || null,
         };
 
-        if (newStatus === "Delivered") {
-            updateFields.dateDelivered = deliveryDate || new Date();
-            updateFields.deliveryReceivedBy = deliveryReceivedBy || null;
-            updateFields.paymentReceived = paymentReceived || null;
-            updateFields.paymentReceivedBy = paymentReceivedBy || null;
+        try {
+            await state.transitionTo(newStatus, meta);
+        } catch (err) {
+            if (err && err.code === 'INVALID_TRANSITION') {
+                return new Response(JSON.stringify({ error: err.message }), { status: 400 });
+            }
+            throw err;
         }
 
-        const updatedOrder = await Order.findByIdAndUpdate(
-            orderId, // changed this to lowercase "d"
-            updateFields,
-            { new: true }).populate('salesmanID', 'firstName lastName').populate('driverAssignedID', 'firstName lastName');
-
-        if (!updatedOrder) {
-            return new Response(JSON.stringify({ error: 'Order not found.' }), 
-            {status: 404,});
+        // Allow route-level override of the delivery date if provided
+        if (deliveryDate) {
+            order.dateDelivered = deliveryDate;
         }
 
-        return new Response(JSON.stringify({ success: true, updatedOrder }), {
+        await order.save();
+        await order.populate('salesmanID', 'firstName lastName').populate('driverAssignedID', 'firstName lastName');
+
+        return new Response(JSON.stringify({ success: true, updatedOrder: order }), {
             status: 200,
         });
 
