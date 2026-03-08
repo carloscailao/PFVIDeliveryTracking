@@ -13,7 +13,7 @@ export async function GET(request, { params }) {
 
     await connectToDatabase();
 
-    const { orderId } = params || {};
+    const { orderId } = (await params) || {};
     if (!orderId) {
       return new Response(JSON.stringify({ error: 'Missing orderId' }), { status: 400 });
     }
@@ -27,14 +27,42 @@ export async function GET(request, { params }) {
     const orderStateModule = await import('@/lib/orderState');
     const orderState = orderStateModule.default || orderStateModule;
     const { getState, STATUSES } = orderState;
+    const paymentStrategyModule = await import('@/lib/paymentStrategy');
+    const paymentStrategy = paymentStrategyModule.default || paymentStrategyModule;
+    const { getPaymentDetails, getPaymentStrategy } = paymentStrategy;
 
     const state = getState(order);
     const allowed = typeof state.allowedTransitions === 'function' ? state.allowedTransitions() : [];
+
+    const paymentDetails = getPaymentDetails(order);
+    let strategyName = null;
+    try {
+      const strategy = getPaymentStrategy(order.paymentMethod);
+      strategyName = strategy?.constructor?.name || null;
+    } catch {
+      strategyName = null;
+    }
 
     return new Response(JSON.stringify({
       currentStatus: order.orderStatus,
       allowedTransitions: allowed,
       allStatuses: STATUSES,
+      stateInfo: {
+        currentState: order.orderStatus,
+        allowedTransitions: allowed,
+        allStates: STATUSES,
+      },
+      strategyInfo: {
+        strategyName,
+        method: order.paymentMethod || null,
+        requiresClearing: paymentDetails?.requiresClearing || false,
+        clearingStatus: paymentDetails?.clearingStatus || null,
+        expectedAmount: paymentDetails?.expectedAmount ?? (Number(order.paymentAmt) || 0),
+        receivedAmount: paymentDetails?.receivedAmount ?? (Number(order.paymentReceived) || 0),
+        balance: paymentDetails?.balance ?? (Number(order.paymentAmt || 0) - Number(order.paymentReceived || 0)),
+        isPaid: paymentDetails?.isPaid || false,
+        isPartiallyPaid: paymentDetails?.isPartiallyPaid || false,
+      },
     }), { status: 200 });
 
   } catch (err) {

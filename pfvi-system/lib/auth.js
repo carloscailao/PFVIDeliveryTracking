@@ -16,8 +16,6 @@ export const authOptions = {
         rememberMe: { label: "Remember Me", type: "boolean" },
       },
       async authorize(credentials) {
-        console.log("🔑 Authorizing with credentials:", credentials);
-
         if (!credentials?.phoneNumber || !credentials?.password) {
           throw new Error("Phone number and password are required");
         }
@@ -48,7 +46,6 @@ export const authOptions = {
             rememberMe,
           };
 
-          console.log("✅ Authorized user:", finalUser);
           return finalUser;
         } catch (error) {
           console.error("❌ Authorization error:", error);
@@ -75,7 +72,6 @@ export const authOptions = {
         token.status = user.status;
         token.rememberMe = user.rememberMe;
         token.exp = now + (user.rememberMe ? 60 * 60 * 24 * 30 : 60 * 60); // set initial exp
-        console.log("🧠 JWT callback (fresh login) →", token);
       } else {
         const remaining = (token.exp || 0) - now;
         const threshold = 10 * 60; // 10 minutes
@@ -83,9 +79,6 @@ export const authOptions = {
         if (remaining < threshold) {
           const expiresIn = token.rememberMe ? 60 * 60 * 24 * 30 : 60 * 60;
           token.exp = now + expiresIn;
-          console.log("🔁 JWT exp refreshed due to activity →", new Date(token.exp * 1000).toISOString());
-        } else {
-          console.log("🔁 JWT still valid → remaining seconds:", remaining);
         }
       }
 
@@ -99,7 +92,6 @@ export const authOptions = {
       session.user.role = token.role;
       session.user.status = token.status;
       session.user.rememberMe = token.rememberMe;
-      console.log("📦 Session callback →", session.user);
       return session;
     },
 
@@ -122,20 +114,10 @@ export const authOptions = {
     },
   },
 
-  events: {
-    async signIn({ user }) {
-      console.log(`👤 User signed in: ${user.phoneNumber}`);
-    },
-    async signOut({ token }) {
-      console.log(`🚪 User signed out: ${token?.phoneNumber}`);
-    },
-  },
-
   jwt: {
     encode: async ({ token, secret }) => {
       const { exp, iat, ...cleanToken } = token;
       const expiresIn = cleanToken.rememberMe ? "30d" : "1h";
-      console.log("🔐 JWT ENCODE → rememberMe:", cleanToken.rememberMe, "expiresIn:", expiresIn);
       return jwt.sign(cleanToken, secret, {
         algorithm: "HS256",
         expiresIn,
@@ -144,11 +126,8 @@ export const authOptions = {
 
     decode: async ({ token, secret }) => {
       try {
-        const decoded = jwt.verify(token, secret, { algorithms: ["HS256"] });
-        console.log("🔓 JWT DECODE →", decoded);
-        return decoded;
-      } catch (err) {
-        console.warn("❌ JWT decode failed:", err.message);
+        return jwt.verify(token, secret, { algorithms: ["HS256"] });
+      } catch {
         return null;
       }
     },

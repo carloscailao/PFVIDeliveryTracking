@@ -66,6 +66,32 @@ const orderSchema = new mongoose.Schema({
     type: String,
     default: null,
   },
+  paymentReceivedDate: {
+    type: Date,
+    default: null,
+  },
+  // Cheque-specific fields for payment strategy
+  chequeNumber: {
+    type: String,
+    default: null,
+  },
+  bankName: {
+    type: String,
+    default: null,
+  },
+  chequeClearingStatus: {
+    type: String,
+    enum: ['Pending', 'Cleared', 'Bounced'],
+    default: null,
+  },
+  chequeClearedDate: {
+    type: Date,
+    default: null,
+  },
+  chequeBouncedDate: {
+    type: Date,
+    default: null,
+  },
   salesmanNotes: {
     type: String,
     default: null,
@@ -94,6 +120,18 @@ const orderSchema = new mongoose.Schema({
   },
 
 }, { timestamps: true });
+
+// Helper method to process payment using strategy pattern
+orderSchema.methods.processPaymentWithStrategy = function(paymentData) {
+  const { processPayment } = require('../lib/paymentStrategy');
+  return processPayment(this, paymentData);
+};
+
+// Helper method to get payment details using strategy pattern
+orderSchema.methods.getPaymentDetailsWithStrategy = function() {
+  const { getPaymentDetails } = require('../lib/paymentStrategy');
+  return getPaymentDetails(this);
+};
 
 const Order = mongoose.models.Order || mongoose.model('Order', orderSchema);
 module.exports = Order;

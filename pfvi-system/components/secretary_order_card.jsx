@@ -46,6 +46,8 @@ function formatCurrency(amount) {
     .replace("PHP", "₱")
 }
 
+
+
   export default function SecretaryOrderCard({ order = orderData, onRefresh }) {
     const [isExpanded, setIsExpanded] = useState(false);
     const [copyFeedback, setCopyFeedback] = useState(false);
@@ -66,6 +68,9 @@ function formatCurrency(amount) {
        invoice: order.invoice || '',
        paymentAmt: order.paymentAmt || 0,
        paymentMethod: order.paymentMethod || '',
+       chequeNumber: order.chequeNumber || '',
+       bankName: order.bankName || '',
+       chequeClearingStatus: order.chequeClearingStatus || 'Pending',
        paymentReceived: order.paymentReceived || '',
        paymentReceivedBy: order.paymentReceivedBy || '',
        salesmanNotes: order.salesmanNotes || '',
@@ -83,9 +88,14 @@ function formatCurrency(amount) {
           const res = await fetch(`/api/orders/${order._id}/allowed-actions`, { credentials: 'include' });
           if (!res.ok) throw new Error('Failed to fetch statuses');
           const data = await res.json();
-          if (mounted && data?.allStatuses) setAllStatuses(data.allStatuses);
+          if (mounted) {
+            if (data?.allStatuses) setAllStatuses(data.allStatuses);
+          }
         } catch (err) {
-          if (mounted) setAllStatuses(["Being Prepared","Picked Up","In Transit","Delivered","Deferred","Cancelled"]);
+          if (mounted) {
+            const fallbackStates = ["Being Prepared","Picked Up","In Transit","Delivered","Deferred","Cancelled"];
+            setAllStatuses(fallbackStates);
+          }
         }
       }
       loadStatuses();
@@ -582,6 +592,65 @@ function formatCurrency(amount) {
                       <span className="text-gray-500 text-right">{order.paymentReceivedBy || "N/A"}</span>
                     )}
                   </div>
+                  
+                  {/* Cheque Fields - Show when payment method is Cheque */}
+                  {(order.paymentMethod === 'Cheque' || editedOrder.paymentMethod === 'Cheque') && (
+                    <>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-600">Cheque Number:</span>
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={editedOrder.chequeNumber}
+                            onChange={(e) => setEditedOrder({...editedOrder, chequeNumber: e.target.value})}
+                            className="text-gray-500 text-right bg-white border border-blue-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 max-w-[150px]"
+                            placeholder="Cheque number"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        ) : (
+                          <span className="text-gray-500 text-right">{order.chequeNumber || "Not set"}</span>
+                        )}
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-600">Bank Name:</span>
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={editedOrder.bankName}
+                            onChange={(e) => setEditedOrder({...editedOrder, bankName: e.target.value})}
+                            className="text-gray-500 text-right bg-white border border-blue-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 max-w-[150px]"
+                            placeholder="Bank name"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        ) : (
+                          <span className="text-gray-500 text-right">{order.bankName || "Not set"}</span>
+                        )}
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-600">Clearing Status:</span>
+                        {isEditing ? (
+                          <select
+                            value={editedOrder.chequeClearingStatus}
+                            onChange={(e) => setEditedOrder({...editedOrder, chequeClearingStatus: e.target.value})}
+                            className="text-gray-500 text-right bg-white border border-blue-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <option value="Pending">Pending</option>
+                            <option value="Cleared">Cleared</option>
+                            <option value="Bounced">Bounced</option>
+                          </select>
+                        ) : (
+                          <span className={`text-right text-sm font-medium px-2 py-1 rounded ${
+                            order.chequeClearingStatus === 'Cleared' ? 'bg-green-100 text-green-800' :
+                            order.chequeClearingStatus === 'Bounced' ? 'bg-red-100 text-red-800' :
+                            'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {order.chequeClearingStatus || "Pending"}
+                          </span>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 

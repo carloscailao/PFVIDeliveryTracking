@@ -22,6 +22,8 @@ export async function POST(request) {
             deliveryReceivedBy,
             paymentReceived,
             paymentReceivedBy,
+            chequeNumber,
+            bankName,
         } = await request.json();
 
         if (!orderId || !newStatus) {
@@ -49,12 +51,17 @@ export async function POST(request) {
             paymentReceived: paymentReceived ?? null,
             paymentReceivedBy: paymentReceivedBy || null,
             deliveryDate: deliveryDate || null,
+            chequeNumber: chequeNumber || null,
+            bankName: bankName || null,
         };
 
         try {
             await state.transitionTo(newStatus, meta);
         } catch (err) {
             if (err && err.code === 'INVALID_TRANSITION') {
+                return new Response(JSON.stringify({ error: err.message }), { status: 400 });
+            }
+            if (err && err.code === 'PAYMENT_VALIDATION_FAILED') {
                 return new Response(JSON.stringify({ error: err.message }), { status: 400 });
             }
             throw err;
@@ -66,7 +73,10 @@ export async function POST(request) {
         }
 
         await order.save();
-        await order.populate('salesmanID', 'firstName lastName').populate('driverAssignedID', 'firstName lastName');
+        await order.populate([
+            { path: 'salesmanID', select: 'firstName lastName' },
+            { path: 'driverAssignedID', select: 'firstName lastName' },
+        ]);
 
         return new Response(JSON.stringify({ success: true, updatedOrder: order }), {
             status: 200,

@@ -11,6 +11,8 @@ export default function CreateOrder() {
   const [customerName, setCustomerName] = useState('');
   const [paymentAmt, setPaymentAmt] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('Cash');
+  const [chequeNumber, setChequeNumber] = useState('');
+  const [bankName, setBankName] = useState('');
   const [dateMade, setDateMade] = useState('');
   const [contactNumber, setContactNumber] = useState('');
   const [salesmanNotes, setSalesmanNotes] = useState('');
@@ -21,6 +23,19 @@ export default function CreateOrder() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    
+    // Validate cheque fields if payment method is Cheque
+    if (paymentMethod === 'Cheque') {
+      if (!chequeNumber.trim()) {
+        alert('Cheque number is required for cheque payments');
+        return;
+      }
+      if (!bankName.trim()) {
+        alert('Bank name is required for cheque payments');
+        return;
+      }
+    }
+    
     setShowConfirm(true);
   };
 
@@ -32,6 +47,9 @@ export default function CreateOrder() {
       customerName,
       paymentAmt: parseFloat(paymentAmt),
       paymentMethod,
+      chequeNumber: paymentMethod === 'Cheque' ? chequeNumber : null,
+      bankName: paymentMethod === 'Cheque' ? bankName : null,
+      chequeClearingStatus: paymentMethod === 'Cheque' ? 'Pending' : null,
       dateMade,
       contactNumber,
       salesmanNotes,
@@ -145,6 +163,41 @@ export default function CreateOrder() {
             </select>
           </div>
 
+          {/* Cheque Fields - Only shown when Cheque is selected */}
+          {paymentMethod === 'Cheque' && (
+            <>
+              <div>
+                <label className="block font-semibold" htmlFor="chequeNumber">
+                  Cheque Number <span className="text-red-600">*</span>
+                </label>
+                <input
+                  type="text"
+                  id="chequeNumber"
+                  value={chequeNumber}
+                  onChange={(e) => setChequeNumber(e.target.value)}
+                  className="w-full p-3 mt-2 rounded border border-blue-900"
+                  placeholder="Enter cheque number"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold" htmlFor="bankName">
+                  Bank Name <span className="text-red-600">*</span>
+                </label>
+                <input
+                  type="text"
+                  id="bankName"
+                  value={bankName}
+                  onChange={(e) => setBankName(e.target.value)}
+                  className="w-full p-3 mt-2 rounded border border-blue-900"
+                  placeholder="Enter bank name"
+                  required
+                />
+              </div>
+            </>
+          )}
+
           {/* Date Made */}
           <div>
             <label className="block font-semibold" htmlFor="dateMade">Date Made</label>
@@ -208,6 +261,12 @@ export default function CreateOrder() {
               <p><strong>Customer:</strong> {customerName}</p>
               <p><strong>Amount:</strong> ₱{parseFloat(paymentAmt || 0).toFixed(2)}</p>
               <p><strong>Method:</strong> {paymentMethod}</p>
+              {paymentMethod === 'Cheque' && (
+                <>
+                  <p><strong>Cheque Number:</strong> {chequeNumber}</p>
+                  <p><strong>Bank Name:</strong> {bankName}</p>
+                </>
+              )}
               <p><strong>Date:</strong> {dateMade}</p>
               <p><strong>Contact:</strong> {contactNumber}</p>
               {salesmanNotes && <p><strong>Notes:</strong> {salesmanNotes}</p>}

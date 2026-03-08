@@ -39,6 +39,8 @@ function formatCurrency(amount) {
     .replace("PHP", "₱")
 }
 
+
+
 export default function CompactDriverOrderCard({ order = {}, role = "default", onStatusUpdate, onNoteUpdate }) {
   const { data: session, status } = useSession()
   const [isExpanded, setIsExpanded] = useState(false)
@@ -57,6 +59,8 @@ export default function CompactDriverOrderCard({ order = {}, role = "default", o
   const [deliveryReceiver, setDeliveryReceiver] = useState("");
   const [isPaidOnDelivery, setIsPaidOnDelivery] = useState(null);
   const [paymentAmount, setPaymentAmount] = useState("");
+  const [chequeNumber, setChequeNumber] = useState("");
+  const [bankName, setBankName] = useState("");
   const [showDeliveryConfirmModal, setShowDeliveryConfirmModal] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState("");
@@ -74,10 +78,15 @@ export default function CompactDriverOrderCard({ order = {}, role = "default", o
         const res = await fetch(`/api/orders/${order._id}/allowed-actions`, { credentials: 'include' });
         if (!res.ok) throw new Error('Failed to fetch allowed actions');
         const data = await res.json();
-        if (mounted && data?.allowedTransitions) setAllowedActions(data.allowedTransitions);
+        if (mounted) {
+          if (data?.allowedTransitions) setAllowedActions(data.allowedTransitions);
+        }
       } catch (err) {
         // fallback to client-side sequence if endpoint fails
-        if (mounted) setAllowedActions(["Being Prepared", "Picked Up", "In Transit", "Delivered", "Deferred"]);
+        if (mounted) {
+          const fallbackAllowed = ["Being Prepared", "Picked Up", "In Transit", "Delivered", "Deferred"];
+          setAllowedActions(fallbackAllowed);
+        }
       }
     }
     loadAllowed();
@@ -177,6 +186,8 @@ export default function CompactDriverOrderCard({ order = {}, role = "default", o
         ? Number(paymentAmount) // ✅ Convert to number
         : null,
         paymentReceivedBy: isPaidOnDelivery === "yes" ? "Driver" : null,
+        chequeNumber: order.paymentMethod === 'Cheque' && isPaidOnDelivery === "yes" ? chequeNumber : null,
+        bankName: order.paymentMethod === 'Cheque' && isPaidOnDelivery === "yes" ? bankName : null,
       };
 
       if (onStatusUpdate) {
@@ -191,6 +202,8 @@ export default function CompactDriverOrderCard({ order = {}, role = "default", o
       setShowDeliveryModal(false);
       setDeliveryReceiver("");
       setPaymentAmount("");
+      setChequeNumber("");
+      setBankName("");
       setIsPaidOnDelivery(null);
     }
   };
@@ -367,7 +380,6 @@ export default function CompactDriverOrderCard({ order = {}, role = "default", o
               </div>
             </div>
 
-            {/* Notes */}
             {(order.salesmanNotes || order.driverNotes || order.secretaryNotes) && (
               <div className="space-y-2">
                 <div className="flex items-center gap-2 font-semibold text-gray-900 text-sm">
@@ -613,17 +625,45 @@ export default function CompactDriverOrderCard({ order = {}, role = "default", o
                 </div>
               </div>
               {isPaidOnDelivery === "yes" && (
-                <div>
-                  <label className="font-medium">Payment Amount:</label>
-                  <input
-                    type="number"
-                    min="0"
-                    className="w-full border mt-1 p-2 rounded"
-                    value={paymentAmount}
-                    onChange={(e) => setPaymentAmount(e.target.value)}
-                    required
-                  />
-                </div>
+                <>
+                  <div>
+                    <label className="font-medium">Payment Amount:</label>
+                    <input
+                      type="number"
+                      min="0"
+                      className="w-full border mt-1 p-2 rounded"
+                      value={paymentAmount}
+                      onChange={(e) => setPaymentAmount(e.target.value)}
+                      required
+                    />
+                  </div>
+                  {order.paymentMethod === 'Cheque' && (
+                    <>
+                      <div>
+                        <label className="font-medium">Cheque Number <span className="text-red-600">*</span>:</label>
+                        <input
+                          type="text"
+                          className="w-full border mt-1 p-2 rounded"
+                          value={chequeNumber}
+                          onChange={(e) => setChequeNumber(e.target.value)}
+                          placeholder="Enter cheque number"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="font-medium">Bank Name <span className="text-red-600">*</span>:</label>
+                        <input
+                          type="text"
+                          className="w-full border mt-1 p-2 rounded"
+                          value={bankName}
+                          onChange={(e) => setBankName(e.target.value)}
+                          placeholder="Enter bank name"
+                          required
+                        />
+                      </div>
+                    </>
+                  )}
+                </>
               )}
             </div>
 
@@ -650,6 +690,37 @@ export default function CompactDriverOrderCard({ order = {}, role = "default", o
                     return;
                   }
 
+                  const expectedAmount = Number(order.paymentAmt) || 0;
+                  const enteredAmount = Number(paymentAmount) || 0;
+                  const isCashOrder = order.paymentMethod === "Cash";
+                  const isChequeOrder = order.paymentMethod === "Cheque";
+
+                  if (isCashOrder && expectedAmount > 0) {
+                    if (isPaidOnDelivery !== "yes") {
+                      setDeliveryError("Cash orders must be fully paid at delivery.");
+                      return;
+                    }
+                    if (enteredAmount !== expectedAmount) {
+                      setDeliveryError(`Cash payment must exactly match ${formatCurrency(expectedAmount)}.`);
+                      return;
+                    }
+                  }
+
+                  if (isChequeOrder && isPaidOnDelivery === "yes") {
+                    if (expectedAmount > 0 && enteredAmount !== expectedAmount) {
+                      setDeliveryError(`Cheque payment must exactly match ${formatCurrency(expectedAmount)}.`);
+                      return;
+                    }
+                    if (!chequeNumber.trim()) {
+                      setDeliveryError("Cheque number is required for cheque payments.");
+                      return;
+                    }
+                    if (!bankName.trim()) {
+                      setDeliveryError("Bank name is required for cheque payments.");
+                      return;
+                    }
+                  }
+
                   setDeliveryError("");
                   setShowDeliveryModal(false);
                   setShowDeliveryConfirmModal(true);
@@ -673,7 +744,15 @@ export default function CompactDriverOrderCard({ order = {}, role = "default", o
               <p><strong>Date:</strong> {deliveryDate}</p>
               <p><strong>Paid on Delivery:</strong> {isPaidOnDelivery === 'yes' ? 'Yes' : 'No'}</p>
               {isPaidOnDelivery === 'yes' && (
-                <p><strong>Amount:</strong> ₱{parseFloat(paymentAmount || 0).toFixed(2)}</p>
+                <>
+                  <p><strong>Amount:</strong> ₱{parseFloat(paymentAmount || 0).toFixed(2)}</p>
+                  {order.paymentMethod === 'Cheque' && (
+                    <>
+                      <p><strong>Cheque Number:</strong> {chequeNumber}</p>
+                      <p><strong>Bank Name:</strong> {bankName}</p>
+                    </>
+                  )}
+                </>
               )}
             </div>
             <div className="flex justify-end space-x-4">
