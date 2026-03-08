@@ -13,7 +13,7 @@ export async function GET(request, { params }) {
 
     await connectToDatabase();
 
-    const { orderId } = params || {};
+    const { orderId } = (await params) || {};
     if (!orderId) {
       return new Response(JSON.stringify({ error: 'Missing orderId' }), { status: 400 });
     }
